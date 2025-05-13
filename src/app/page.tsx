@@ -38,7 +38,7 @@ export default function Home() {
           "Authorization": `Bearer ${process.env.NEXT_PUBLIC_OPENAI_API_KEY}`,
         },
         body: JSON.stringify({
-          model: "gpt-4",
+          model: "gpt-4o-realtime-preview-2024-12-17",
           messages: [
             { 
               role: "system", 
@@ -120,7 +120,7 @@ export default function Home() {
               "Authorization": `Bearer ${process.env.NEXT_PUBLIC_OPENAI_API_KEY}`,
             },
             body: JSON.stringify({
-              model: "gpt-4",
+              model: "gpt-4o-realtime-preview-2024-12-17",
               messages: [
                 { 
                   role: "system", 
@@ -155,7 +155,7 @@ export default function Home() {
             "Authorization": `Bearer ${process.env.NEXT_PUBLIC_OPENAI_API_KEY}`,
           },
           body: JSON.stringify({
-            model: "gpt-4o",
+            model: "gpt-4o-realtime-preview-2024-12-17",
             messages: [
               { role: "system", content: "You are a helpful assistant that only asks the next best follow-up question for a user in a check-in conversation. Your goal is to drive focus and have them expand upon how they about the work in general for that specific day. Questions like 'Why do you feel x is the most important thing to work on today?' is a really good question. Or 'How do you feel about x right now?' Only return the next question, nothing else. 57 chars max including spaces. Ask questions relevant to convo. Don't pester them like an annoying micro-manager, let them explode on the page" },
               { role: "user", content: userMessage },
@@ -168,7 +168,8 @@ export default function Home() {
         const nextQ = data.choices?.[0]?.message?.content?.trim() || "What else?";
         setPlaceholder(nextQ);
         setLoading(false);
-      } catch (err) {
+      } catch (error) {
+        console.error("Error getting next question:", error);
         setPlaceholder("(Error getting next question)");
         setLoading(false);
       }
