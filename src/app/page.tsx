@@ -66,9 +66,9 @@ export default function Home() {
 
   useEffect(() => {
     if (textareaRef.current && shadowRef.current) {
-      // @ts-ignore
+      // @ts-expect-error - refs are properly typed but TypeScript doesn't know about style properties
       textareaRef.current.style.height = 'auto';
-      // @ts-ignore
+      // @ts-expect-error - refs are properly typed but TypeScript doesn't know about scrollHeight
       textareaRef.current.style.height = shadowRef.current.scrollHeight + 'px';
     }
   }, [value]);
@@ -76,7 +76,7 @@ export default function Home() {
   // Add new useEffect to handle focus when placeholder changes
   useEffect(() => {
     if (textareaRef.current && !loading) {
-      // @ts-ignore
+      // @ts-expect-error - refs are properly typed but TypeScript doesn't know about focus method
       textareaRef.current.focus();
     }
   }, [placeholder, loading]);
@@ -84,7 +84,7 @@ export default function Home() {
   const handleBlur = () => {
     if (textareaRef.current) {
       setTimeout(() => {
-        // @ts-ignore
+        // @ts-expect-error - refs are properly typed but TypeScript doesn't know about focus method
         textareaRef.current.focus();
       }, 0);
     }
@@ -104,7 +104,7 @@ export default function Home() {
       // Scroll down a bit
       setTimeout(() => {
         if (scrollRef.current) {
-          // @ts-ignore
+          // @ts-expect-error - refs are properly typed but TypeScript doesn't know about scrollIntoView
           scrollRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
         }
       }, 100);
@@ -120,11 +120,11 @@ export default function Home() {
               "Authorization": `Bearer ${process.env.NEXT_PUBLIC_OPENAI_API_KEY}`,
             },
             body: JSON.stringify({
-              model: "gpt-4o",
+              model: "gpt-4",
               messages: [
                 { 
                   role: "system", 
-                  content: "You are a helpful assistant that summarizes Farza's feelings and journal about their work day, and presents it to their coworkers. Create a causal, concise, summary of the key points discussed. Focus on goals, progress, and important insights and feelings that are appropriate to communicate to the teammate reading it. Even if you have very little, do your best." 
+                  content: "You are a helpful assistant that summarizes a users feelings and journal about their work day, and presents it to their coworkers. Create a causal, concise, summary of the key points discussed. Focus on goals, progress, and important insights and feelings that are appropriate to communicate to the teammate reading it. Even if you have very little, do your best." 
                 },
                 { 
                   role: "user", 
@@ -140,8 +140,9 @@ export default function Home() {
           setSummary(summaryText);
           setLoading(false);
           return;
-        } catch (err) {
-          console.error("Error getting summary:", err);
+        } catch (error) {
+          console.error("Error getting summary:", error);
+          setSummary("Error generating summary. Please try again.");
         }
       }
 
