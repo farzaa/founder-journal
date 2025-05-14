@@ -1,11 +1,8 @@
 'use client';
 import React, { useState, useRef, useEffect } from "react";
 
-const people = ["Sam", "Sharif", "Naveed", "Bihan", "Max"] as const;
-type Person = typeof people[number];
-
 // Pre-generated summaries for each person
-const personSummaries: Record<Person, string> = {
+const personSummaries = {
   "Sam": "Feeling inspired after testing the new camera-based logo generator with real users today. The instant feedback loop is working better than expected, though still struggling with edge cases in low-light conditions. Excited to refine the AI's understanding of brand aesthetics based on today's user testing session.",
   "Sharif": "Had a breakthrough moment with the Mac AI tool's voice command system. Finally solved the latency issues that were bugging me all week. Feeling a mix of relief and excitement - the team's feedback on the new gesture controls was super positive. Still need to tackle the battery optimization tomorrow.",
   "Naveed": "The AR glasses prototype is coming together beautifully. Today's focus was on the hand-tracking accuracy, and we're seeing 95% success rate in complex gestures. Feeling proud of the team's progress, though the weight distribution is still a challenge we need to solve.",
@@ -13,16 +10,58 @@ const personSummaries: Record<Person, string> = {
   "Max": "The AI workout app's new motion tracking is working like a charm. Today's user testing showed 40% better form correction accuracy. Feeling pumped about the progress, though the calorie burn algorithm needs tweaking. The team's feedback on the new UI was exactly what we needed."
 };
 
+// Helper to get previous N dates (including today)
+function getPrevDates(n: number) {
+  const dates = [];
+  const today = new Date();
+  for (let i = 0; i < n; i++) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    dates.push(d);
+  }
+  return dates;
+}
+
+// Abbreviated weekday names
+const weekdayAbbr = ["Sun", "Mon", "Tues", "Wed", "Thurs", "Fri", "Sat"];
+
 export default function Home() {
   const [value, setValue] = useState("");
-  const [placeholder, setPlaceholder] = useState("Whatcha working doing today?");
+  const [placeholder, setPlaceholder] = useState("What did you get done this week?");
   const [loading, setLoading] = useState(false);
-  const [conversation, setConversation] = useState<string[]>([]);
+  const [conversation, setConversation] = useState<{role: 'user' | 'assistant', content: string}[]>([]);
   const [summary, setSummary] = useState<string>("");
   const [selectedPerson, setSelectedPerson] = useState<string | null>(null);
+  const [timeLeft, setTimeLeft] = useState(60); // 1 minute in seconds
+  const [showTimer, setShowTimer] = useState(false);
+  const [startTimer, setStartTimer] = useState(false);
   const textareaRef = useRef(null);
   const shadowRef = useRef(null);
   const scrollRef = useRef(null);
+
+  // Timer effect
+  useEffect(() => {
+    if (timeLeft > 0 && startTimer) {
+      const timer = setInterval(() => {
+        setTimeLeft(prev => prev - 1);
+      }, 1000);
+      return () => clearInterval(timer);
+    }
+  }, [timeLeft, startTimer]);
+
+  // Format time as MM:SS
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Calculate progress percentage
+  const progress = (timeLeft / 60) * 100;
+
+  // Only today's date
+  const today = new Date();
+  const formattedToday = `${weekdayAbbr[today.getDay()]}, ${today.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
 
   const generateCompanySummary = async () => {
     setLoading(true);
@@ -38,7 +77,7 @@ export default function Home() {
           "Authorization": `Bearer ${process.env.NEXT_PUBLIC_OPENAI_API_KEY}`,
         },
         body: JSON.stringify({
-          model: "gpt-4o-realtime-preview-2024-12-17",
+          model: "gpt-4o-2024-08-06",
           messages: [
             { 
               role: "system", 
@@ -50,7 +89,7 @@ export default function Home() {
             },
           ],
           max_tokens: 150,
-          temperature: 0.7,
+          temperature: 1.0,
         }),
       });
       const data = await res.json();
@@ -99,7 +138,7 @@ export default function Home() {
       setValue("");
       
       // Add user message to conversation
-      setConversation(prev => [...prev, userMessage]);
+      setConversation(prev => [...prev, { role: 'user', content: userMessage }]);
 
       // Scroll down a bit
       setTimeout(() => {
@@ -109,9 +148,15 @@ export default function Home() {
         }
       }, 100);
 
-      // If we have 3 questions answered, get summary
-      if (conversation.length >= 2) {
-        console.log('Full conversation before summary:', [...conversation, userMessage]);
+      // Show and start timer after first answer
+      if (conversation.length === 0) {
+        setShowTimer(true);
+        setStartTimer(true);
+      }
+
+      // If timer is at 0 or less than 20s, get summary
+      if (timeLeft <= 20) {
+        console.log('Full conversation before summary:', [...conversation, { role: 'user', content: userMessage }]);
         try {
           const res = await fetch("https://api.openai.com/v1/chat/completions", {
             method: "POST",
@@ -120,19 +165,29 @@ export default function Home() {
               "Authorization": `Bearer ${process.env.NEXT_PUBLIC_OPENAI_API_KEY}`,
             },
             body: JSON.stringify({
-              model: "gpt-4o-realtime-preview-2024-12-17",
+              model: "gpt-4o-2024-08-06",
               messages: [
                 { 
                   role: "system", 
-                  content: "You are a helpful assistant that summarizes a users feelings and journal about their work day, and presents it to their coworkers. Create a causal, concise, summary of the key points discussed. Focus on goals, progress, and important insights and feelings that are appropriate to communicate to the teammate reading it. Even if you have very little, do your best." 
+                  content: `You take a user's journal entry about their work day and reply back to it as Steve Jobs (but the user does't know you're Steve)
+
+                  Talk through it with me like Steve Jobs would. In fact, keep Steve Job's tone. It should feel like he's giving me his opinions on the transcript + my work. Your goal is to have me do better/ more focused work. Don't quote Steve Jobs, don' assume too much of user. If not enough info -- say so.
+
+                  Don't repeat back the users words.
+
+                  Keep it casual, dont say yo, help me make new connections i don't see, comfort, validate, challenge.
+
+                  Don't ask more q's here. The user can't reply to you at this point.
+                  
+                  Max 100 words.
+                  ` 
                 },
                 { 
                   role: "user", 
-                  content: `Here's the conversation to summarize:\n${[...conversation, userMessage].join('\n')}` 
+                  content: `Here's the conversation to go through:\n${[...conversation, { role: 'user', content: userMessage }].map(msg => `${msg.role === 'assistant' ? 'Assistant' : 'User'}: ${msg.content}`).join('\n')}` 
                 },
               ],
-              max_tokens: 150,
-              temperature: 0.7,
+              temperature: 1.0,
             }),
           });
           const data = await res.json();
@@ -146,34 +201,43 @@ export default function Home() {
         }
       }
 
-      // Regular question flow
-      try {
-        const res = await fetch("https://api.openai.com/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${process.env.NEXT_PUBLIC_OPENAI_API_KEY}`,
-          },
-          body: JSON.stringify({
-            model: "gpt-4o-realtime-preview-2024-12-17",
-            messages: [
-              { role: "system", content: "You are a helpful assistant that only asks the next best follow-up question for a user in a check-in conversation. Your goal is to drive focus and have them expand upon how they about the work in general for that specific day. Questions like 'Why do you feel x is the most important thing to work on today?' is a really good question. Or 'How do you feel about x right now?' Only return the next question, nothing else. 57 chars max including spaces. Ask questions relevant to convo. Don't pester them like an annoying micro-manager, let them explode on the page" },
-              { role: "user", content: userMessage },
-            ],
-            max_tokens: 64,
-            temperature: 0.7,
-          }),
-        });
-        const data = await res.json();
-        const nextQ = data.choices?.[0]?.message?.content?.trim() || "What else?";
-        setPlaceholder(nextQ);
-        setLoading(false);
-      } catch (error) {
-        console.error("Error getting next question:", error);
-        setPlaceholder("(Error getting next question)");
-        setLoading(false);
+      // If more than 20s left, ask another question
+      if (timeLeft > 20) {
+        try {
+          const res = await fetch("https://api.openai.com/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${process.env.NEXT_PUBLIC_OPENAI_API_KEY}`,
+            },
+            body: JSON.stringify({
+              model: "gpt-4o-2024-08-06",
+              messages: [
+                { role: "system", content: `You are a helpful assistant that only asks the next best follow-up question for a user in a check-in conversation. Your goal is to drive focus and have them expand upon how they about the work in general for that specific day. Questions like 'Why do you feel x is the most important thing to work on today?' is a really good question. Or 'How do you feel about x right now?' Only return the next question, nothing else. 57 chars max including spaces. Ask questions relevant to convo. Don't pester them like an annoying micro-manager, let them explode on the page. You have the focus and intenseness of Steve Jobs and you must ask the user questions that may help you spot issues in their thinking, or, simply help them expand upon what they're doing + let them simply journal. Build up to tough q's. Challenge them, but start easy, let them arrive at the answers themselves via inception. Make each question very different from the previous. Try and understand the full scope of the users life, feelings, emotions, goals. Build a model of them via these q's.` },
+                { role: "user", content: userMessage },
+              ],
+              max_tokens: 64,
+              temperature: 1.0,
+            }),
+          });
+          const data = await res.json();
+          const nextQ = data.choices?.[0]?.message?.content?.trim() || "What else?";
+          setPlaceholder(nextQ);
+          // Add assistant's question to conversation
+          setConversation(prev => [...prev, { role: 'assistant', content: nextQ }]);
+          setLoading(false);
+        } catch (error) {
+          console.error("Error getting next question:", error);
+          setPlaceholder("(Error getting next question)");
+          setLoading(false);
+        }
       }
     }
+  };
+
+  // Handle value change
+  const handleValueChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setValue(e.target.value);
   };
 
   return (
@@ -189,44 +253,41 @@ export default function Home() {
             >
               Company
             </span>
-            <div className="flex-1 flex flex-col justify-center gap-1">
-              {people.map((name) => (
-                <span
-                  key={name}
-                  className="text-[18px] font-medium cursor-pointer hover:text-black transition-colors"
-                  style={{
-                    color: selectedPerson === name ? '#000000' : '#AEAEAE',
-                    letterSpacing: '-0.04em',
-                  }}
-                  onClick={() => {
-                    setSelectedPerson(name);
-                    setSummary(personSummaries[name]);
-                  }}
-                >
-                  {name}
-                </span>
-              ))}
+            <div className="flex-1 flex flex-col justify-center gap-2">
+              <span
+                className="text-[18px] font-medium"
+                style={{
+                  color: '#AEAEAE',
+                  letterSpacing: '-0.04em',
+                }}
+              >
+                {formattedToday}
+              </span>
+              <span className="text-xs text-gray-300 mt-1 flex items-center gap-1" style={{letterSpacing: '-0.04em'}}>
+                <span className="bg-gray-200 text-gray-700 rounded px-2 py-0.5 font-mono">⌘</span>
+                <span className="text-gray-500">+</span>
+                <span className="bg-gray-200 text-gray-700 rounded px-2 py-0.5 font-mono">↵</span>
+                <span className="ml-1" style={{ color: '#AEAEAE' }}>to continue</span>
+              </span>
             </div>
-          </div>
-          <div className="mb-2">
-            <span className="text-black text-lg mr-2 align-middle" style={{ fontWeight: 600 }}>•</span>
-            <span 
-              className="text-black text-lg font-semibold align-middle cursor-pointer hover:opacity-70 transition-opacity" 
-              style={{ letterSpacing: '-0.04em' }}
-              onClick={() => {
-                setSelectedPerson(null);
-                setSummary("");
-                setValue("");
-                setPlaceholder("Whatcha working doing today?");
-              }}
-            >
-              Farza
-            </span>
+            {showTimer && (
+              <div className="mb-2">
+                <div className={`text-sm font-medium mb-1 ${startTimer ? 'text-black' : ''}`} style={{ color: startTimer ? '#000000' : '#AEAEAE' }}>
+                  {formatTime(timeLeft)} left
+                </div>
+                <div className="h-1 bg-gray-200 rounded-full overflow-hidden">
+                  <div 
+                    className={`h-full transition-all duration-1000 ease-linear ${startTimer ? 'bg-black' : 'bg-gray-300'}`}
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
         {/* Main content area */}
         <div className="flex-1 flex flex-col items-center justify-center p-8">
-          <div className="w-full h-full flex items-center justify-center bg-[#eceae6] rounded-[40px]" style={{ minHeight: '80vh' }}>
+          <div className="w-full h-full flex items-center justify-center bg-[#eceae6] rounded-[40px] relative" style={{ minHeight: '80vh' }}>
             <div className="flex flex-1 items-center justify-center w-full h-full" ref={scrollRef}>
               <div className="relative w-full max-w-2xl flex items-center justify-center">
                 {/* Show summary if available */}
@@ -264,7 +325,7 @@ export default function Home() {
                       placeholder={value ? '' : placeholder}
                       style={{ fontSize: '1.5rem', minHeight: '3rem', lineHeight: 1.2, whiteSpace: 'pre-wrap', overflow: 'hidden', textAlign: 'center' }}
                       value={value}
-                      onChange={e => setValue(e.target.value)}
+                      onChange={handleValueChange}
                       onBlur={handleBlur}
                       onKeyDown={handleKeyDown}
                       disabled={loading}
