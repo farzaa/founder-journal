@@ -10,18 +10,6 @@ const personSummaries = {
   "Max": "The AI workout app's new motion tracking is working like a charm. Today's user testing showed 40% better form correction accuracy. Feeling pumped about the progress, though the calorie burn algorithm needs tweaking. The team's feedback on the new UI was exactly what we needed."
 };
 
-// Helper to get previous N dates (including today)
-function getPrevDates(n: number) {
-  const dates = [];
-  const today = new Date();
-  for (let i = 0; i < n; i++) {
-    const d = new Date(today);
-    d.setDate(today.getDate() - i);
-    dates.push(d);
-  }
-  return dates;
-}
-
 // Abbreviated weekday names
 const weekdayAbbr = ["Sun", "Mon", "Tues", "Wed", "Thurs", "Fri", "Sat"];
 
